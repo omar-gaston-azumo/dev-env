@@ -1,0 +1,68 @@
+services:
+  flow-mysql:
+    image: mysql:8
+    platform: linux/amd64
+    container_name: flow-mysql
+    env_file:
+      - env/.env.flow
+    profiles: ["flow"]
+    restart: unless-stopped
+    ports:
+      - "${FLOW_MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_USER: ${FLOW_MYSQL_USER:-root}
+      MYSQL_ROOT_PASSWORD: ${FLOW_MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${FLOW_MYSQL_DATABASE:-flow}
+    volumes:
+      - flow_mysql_data:/var/lib/mysql
+    networks: [shared]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${FLOW_MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  flow-redis:
+    image: redis:7-alpine
+    container_name: flow-redis
+    profiles: ["flow"]
+    env_file:
+      - env/.env.flow
+    restart: unless-stopped
+    ports:
+      - "${FLOW_REDIS_PORT:-6379}:6379"
+    environment:
+      REDIS_PASSWORD: ${FLOW_REDIS_PASSWORD:-}
+    volumes:
+      - flow_redis_data:/data
+    networks: [shared]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  flow-app:
+    build:
+      context: .
+      dockerfile: ./profiles/flow/Dockerfile
+    container_name: flow-app
+    user: "node"
+    profiles: ["flow"]
+    env_file:
+      - env/.env.flow
+      # - env/.env.shared
+    environment:
+      APP_ENV: docker
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "${FLOW_APP_PORT:-3000}:3000"
+      - "${FLOW_NODE_INSPECT_PORT:-9229}:9229"
+    volumes:
+      - ../flow-service:/usr/app
+    networks: [shared]
+    depends_on:
+      flow-mysql:
+        condition: service_healthy
+      flow-redis:
+        condition: service_healthy

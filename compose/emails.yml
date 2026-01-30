@@ -1,0 +1,55 @@
+services:
+  emails:
+    container_name: email-php
+    profiles: ["emails"]
+    build:
+      context: ./profiles/emails/php/8.0
+      dockerfile: Dockerfile
+      args:
+        WWWGROUP: "${WWWGROUP}"
+    env_file:
+      - env/.env.emails
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${EMAILS_APP_PORT:-8000}:8000"
+    environment:
+      WWWUSER: "${WWWUSER}"
+      XDEBUG_MODE: "${XDEBUG_MODE:-off}"
+      XDEBUG_CONFIG: "client_host=host.docker.internal" 
+      IGNITION_LOCAL_SITES_PATH: "${PWD}"
+    volumes:
+      - ../emails/files:/var/www/html
+      - ../emails/files/var/log:/var/www/var/log
+    depends_on:
+      - email-mailhog
+    networks:
+      - shared
+    restart: unless-stopped
+
+  email-mailhog:
+    image: axllent/mailpit
+    container_name: email-mailhog
+    profiles: ["emails"]
+    ports:
+      - "${EMAILS_MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${EMAILS_MAILHOG_WEB_PORT:-8025}:8025"
+    networks:
+      - shared
+    restart: unless-stopped
+
+  emails-mongo:
+    image: mongo:5.0.7
+    container_name: emails-mongo
+    profiles: ["emails"]
+    ports:
+      - "${EMAILS_MONGO_PORT:-27018}:27017"
+    networks:
+      - shared
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_INITDB_ROOT_USERNAME:-mongo}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_INITDB_ROOT_PASSWORD:-mongo}"
+      MONGO_INITDB_DATABASE: "${MONGO_INITDB_DATABASE:-vb}"
+    volumes:
+      - emails_mongo_data:/data/db

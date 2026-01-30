@@ -1,0 +1,37 @@
+services:
+  timeline-nginx:
+    image: nginx:1.21
+    working_dir: /var/www/
+    container_name: timeline-local-nginx
+    profiles: ["timeline"]
+    volumes:
+      - ../timeline/files:/var/www
+      - ./profiles/timeline/logs:/var/log
+      - ./profiles/timeline/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./profiles/timeline/nginx/certs:/etc/nginx/certs
+    depends_on:
+      - timeline-php-fpm
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "86:80"
+      - "446:443"
+    networks: [timeline-net, shared]
+
+  timeline-php-fpm:
+    build:
+      context: .
+      dockerfile: ./profiles/timeline/php-fpm/Dockerfile
+    container_name: timeline-local-php
+    profiles: ["timeline"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../timeline/files/:/var/www
+      - ./profiles/timeline/php-fpm/phpconf.ini:/usr/local/etc/php/conf.d/phpconf.ini
+      - /var/www/docker/
+      - ../timeline/files/supervisor/local:/etc/supervisor/conf.d
+    env_file:
+      - env/.env.timeline
+      - env/.env.shared
+    networks: [timeline-net, shared]

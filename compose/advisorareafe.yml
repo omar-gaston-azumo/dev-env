@@ -1,0 +1,42 @@
+services:
+  advisorareafe-app:
+    build:
+      context: ../advisorarea-frontend-app
+      dockerfile: ../dev-env/profiles/advisorareafe/Dockerfile
+    container_name: advisorareafe-app
+    profiles: ["advisorareafe"]
+    env_file:
+      - env/.env.advisorareafe
+    environment:
+      APP_ENV: docker
+    ports:
+      - "${ADVISORAREAFE_APP_PORT:-3000}:3000"
+    volumes:
+      - ../advisorarea-frontend-app/src:/app/src
+      - ../advisorarea-frontend-app/public:/app/public
+    networks: 
+      - shared
+    restart: unless-stopped
+
+  advisorareafe-proxy:
+    build:
+      context: ../advisorarea-frontend-app
+      dockerfile: ../dev-env/profiles/advisorareafe/Dockerfile
+    container_name: advisorareafe-proxy
+    profiles: ["advisorareafe"]
+    env_file:
+      - env/.env.advisorareafe
+    ports:
+      - "${ADVISORAREAFE_PROXY_PORT:-3005}:3005"
+    volumes:
+      - ../advisorarea-frontend-app/proxy.js:/app/proxy.js
+    command: ["node", "proxy.js"]
+    networks:
+      - shared
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+
+
+

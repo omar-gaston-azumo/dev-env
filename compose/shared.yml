@@ -1,0 +1,65 @@
+services:
+  mysql:
+    profiles: ["shared"]
+    env_file:
+      - env/.env.shared
+    image: "mysql/mysql-server:8.0"
+    container_name: vb-mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${VALUEBUILDER_DATABASE_PASSWORD}"
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: "${VALUEBUILDER_DATABASE_NAME}"
+      MYSQL_USER: "${VALUEBUILDER_DATABASE_USER}"
+      MYSQL_PASSWORD: "${VALUEBUILDER_DATABASE_PASSWORD}"
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    volumes:
+      - valuebuilder_mysql_data:/var/lib/mysql
+    networks:
+      - shared
+
+  redis:
+    profiles: ["shared"]
+    env_file:
+      - env/.env.shared
+    image: redis:6.2
+    container_name: vb-redis
+    mem_limit: 1G
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - valuebuilder_redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - shared
+
+  mongodb:
+    profiles: ["shared"]
+    env_file:
+      - env/.env.shared
+    image: mongo:3.6.23
+    container_name: vb-mongodb
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_INITDB_ROOT_USERNAME:-mongo}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_INITDB_ROOT_PASSWORD:-mongo}"
+      MONGO_INITDB_DATABASE: "${MONGO_INITDB_DATABASE:-vb}"
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: |
+        mongo --eval "
+          rs.status().ok || rs.initiate({
+            _id: 'rs0',
+            members: [{ _id: 0, host: 'localhost:27017' }]
+          })
+        " --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - valuebuilder_mongodb_data:/data/db
+    networks:
+      - shared      

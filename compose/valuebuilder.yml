@@ -1,0 +1,30 @@
+services:
+  valuebuilder:
+    container_name: valuebuilder-php
+    profiles: ["valuebuilder"]
+    build:
+      context: .
+      dockerfile: ./profiles/valuebuilder/php/7.4/Dockerfile
+      args:
+        WWWGROUP: "${WWWGROUP}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      WWWUSER: "${WWWUSER}"
+      XDEBUG_MODE: "debug,develop"  
+      XDEBUG_CONFIG: "client_host=host.docker.internal" 
+      IGNITION_LOCAL_SITES_PATH: "${PWD}"
+      UNIVERSAL_PASSWORD: "${UNIVERSAL_PASSWORD}"
+      APP_SECRET: eeb958012d0316021fe1715029b5f326
+      SOPHIA_SUPPORT_ADVISOR_ID: "${SOPHIA_SUPPORT_ADVISOR_ID}"
+      GOOGLE_RECAPTCHA_SITE_KEY: "${GOOGLE_RECAPTCHA_SITE_KEY}"
+      GOOGLE_RECAPTCHA_SECRET: "${GOOGLE_RECAPTCHA_SECRET}"
+      GOOGLE_RECAPTCHA_ENABLED: "${GOOGLE_RECAPTCHA_ENABLED}"
+    volumes:
+      - ../valuebuilder/:/var/www/html
+    env_file:
+      - env/.env.valuebuilder
+    networks:
+      - shared
