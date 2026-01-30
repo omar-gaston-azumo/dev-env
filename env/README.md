@@ -1,4 +1,6 @@
-Add the following env files: 
+## Instructions
+
+You need to create the following env files in this folder: 
 
 .env.advisorareafe
 ```
