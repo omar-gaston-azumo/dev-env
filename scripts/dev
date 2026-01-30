@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+BASE_FILE="$ROOT_DIR/docker-compose.yml"
+COMPOSE_DIR="$ROOT_DIR/compose"
+
+# Dynamically build compose file arguments
+COMPOSE_FILES=(-f "$BASE_FILE")
+
+# Add shared.yml first if it exists (should be loaded before other profiles)
+if [ -f "$COMPOSE_DIR/shared.yml" ]; then
+  COMPOSE_FILES+=(-f "$COMPOSE_DIR/shared.yml")
+fi
+
+# Add all other compose files from the compose directory (except shared.yml)
+for file in "$COMPOSE_DIR"/*.yml; do
+  if [ -f "$file" ] && [ "$(basename "$file")" != "shared.yml" ]; then
+    COMPOSE_FILES+=(-f "$file")
+  fi
+done
+
+COMPOSE=(docker compose "${COMPOSE_FILES[@]}")
+
+# Load environment files for given profiles
+load_profile_envs() {
+  for profile in "$@"; do
+    env_file="$ROOT_DIR/env/.env.$profile"
+    if [ -f "$env_file" ]; then
+      set -a  # automatically export all variables
+      source "$env_file"
+      set +a  # stop automatically exporting
+    fi
+  done
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  dev up <profile...>        Start one or more profiles (e.g. flow, timeline)
+  dev down                  Stop stack (keeps volumes)
+  dev down -v               Stop stack and remove volumes
+  dev destroy <profile>     Stop all services for a specific profile
+  dev restart <profile...>  Restart one or more profiles
+  dev logs <service>        Tail logs for a service
+  dev ps                    Show containers
+  dev exec <service> <cmd>  Exec into a running service
+
+Examples:
+  ./scripts/dev up flow
+  ./scripts/dev up timeline
+  ./scripts/dev up advisorareafe
+  ./scripts/dev up flow timeline
+  ./scripts/dev destroy flow
+  ./scripts/dev logs flow-app
+  ./scripts/dev exec flow-app sh
+EOF
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  up)
+    if [ "$#" -lt 1 ]; then usage; exit 1; fi
+    load_profile_envs "$@"
+    PROFILES=()
+    for p in "$@"; do
+      PROFILES+=(--profile "$p")
+    done
+    "${COMPOSE[@]}" "${PROFILES[@]}" up -d --build
+    ;;
+
+  down)
+    # pass-through args like -v
+    "${COMPOSE[@]}" down "$@"
+    ;;
+
+  destroy)
+    if [ "$#" -lt 1 ]; then usage; exit 1; fi
+    profile="$1"
+    load_profile_envs "$profile"
+    "${COMPOSE[@]}" --profile "$profile" down
+    ;;
+
+  restart)
+    if [ "$#" -lt 1 ]; then usage; exit 1; fi
+    load_profile_envs "$@"
+    PROFILES=()
+    for p in "$@"; do
+      PROFILES+=(--profile "$p")
+    done
+    "${COMPOSE[@]}" "${PROFILES[@]}" up -d --build --force-recreate
+    ;;
+
+  logs)
+    if [ "$#" -lt 1 ]; then usage; exit 1; fi
+    svc="$1"; shift
+    "${COMPOSE[@]}" logs -f --tail=200 "$svc" "$@"
+    ;;
+
+  ps)
+    "${COMPOSE[@]}" ps
+    ;;
+
+  exec)
+    if [ "$#" -lt 2 ]; then usage; exit 1; fi
+    svc="$1"; shift
+    "${COMPOSE[@]}" exec "$svc" "$@"
+    ;;
+
+  *)
+    usage
+    exit 0
+    ;;
+esac
